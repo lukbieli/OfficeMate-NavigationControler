@@ -12,6 +12,9 @@ jobs:
   build:
     name: Build ROS 2 Package
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ros-distro: [humble]
 
     steps:
     # Checkout the repository

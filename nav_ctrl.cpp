@@ -35,11 +35,11 @@ public:
   using GoalHandlePose = rclcpp_action::ClientGoalHandle<NavToPose>;
 
   explicit PoseActionClient(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions())
-  : Node("pose_action_client", node_options), 
-  goal_done_(false),
-  io_context_(),
-  acceptor_(io_context_),  // Initialize acceptor
-  socket_(io_context_)  // Initialize socket
+  : Node("pose_action_client", node_options),
+    goal_done_(false),
+    io_context_(),
+    acceptor_(io_context_), // Initialize acceptor
+    socket_(io_context_) // Initialize socket
   {
     this->client_ptr_ = rclcpp_action::create_client<NavToPose>(
       this->get_node_base_interface(),
@@ -52,8 +52,9 @@ public:
     //   std::chrono::milliseconds(2000),
     //   std::bind(&PoseActionClient::send_goal, this));
 
-    this->subscription_clock_ = create_subscription<rosgraph_msgs::msg::Clock>("clock", rclcpp::ClockQoS(),
-                std::bind(&PoseActionClient::topic_callback_clock, this, std::placeholders::_1));
+    this->subscription_clock_ = create_subscription<rosgraph_msgs::msg::Clock>(
+      "clock", rclcpp::ClockQoS(),
+      std::bind(&PoseActionClient::topic_callback_clock, this, std::placeholders::_1));
 
 
     // Start TCP server to accept incoming requests
@@ -63,10 +64,10 @@ public:
 
   ~PoseActionClient()
   {
-      io_context_.stop();
-      if (io_context_thread_ && io_context_thread_->joinable()) {
-          io_context_thread_->join();
-      }
+    io_context_.stop();
+    if (io_context_thread_ && io_context_thread_->joinable()) {
+      io_context_thread_->join();
+    }
   }
 
   bool is_goal_done() const
@@ -103,7 +104,7 @@ public:
 
     auto goal_msg = NavToPose::Goal();
     // goal_msg.pose.header.stamp.sec = this->sec_;
-    // goal_msg.pose.header.stamp.nanosec = this->nsec_;  
+    // goal_msg.pose.header.stamp.nanosec = this->nsec_;
 
     goal_msg.pose.header.frame_id = "map";
 
@@ -185,24 +186,24 @@ private:
     RCLCPP_INFO(this->get_logger(), "Result received");
   }
 
-  void topic_callback_clock(const rosgraph_msgs::msg::Clock &msg)
+  void topic_callback_clock(const rosgraph_msgs::msg::Clock & msg)
   {
-      // RCLCPP_INFO_STREAM(this->get_logger(), "Sec: " << msg.clock.sec << " Nsec: " << msg.clock.nanosec);
-      this->sec_ = msg.clock.sec;
-      this->nsec_ = msg.clock.nanosec;
-      this->timeOk_ = true;
+    // RCLCPP_INFO_STREAM(this->get_logger(), "Sec: " << msg.clock.sec << " Nsec: " << msg.clock.nanosec);
+    this->sec_ = msg.clock.sec;
+    this->nsec_ = msg.clock.nanosec;
+    this->timeOk_ = true;
   }
 
   std::string poseToStr(const geometry_msgs::msg::Pose pose)
   {
-      std::string result = "";
-      result += std::to_string(pose.position.x);
-      result += ",";
-      result += std::to_string(pose.position.y);
-      result += ",";
-      result += std::to_string(pose.position.z);
+    std::string result = "";
+    result += std::to_string(pose.position.x);
+    result += ",";
+    result += std::to_string(pose.position.y);
+    result += ",";
+    result += std::to_string(pose.position.z);
 
-      return result;
+    return result;
   }
 
 
@@ -219,74 +220,77 @@ private:
 
     // Log server details
     auto endpoint_my = acceptor_.local_endpoint();
-    RCLCPP_INFO(this->get_logger(), "TCP Server started on IP: %s, Port: %d",
-                endpoint_my.address().to_string().c_str(), endpoint_my.port());
+    RCLCPP_INFO(
+      this->get_logger(), "TCP Server started on IP: %s, Port: %d",
+      endpoint_my.address().to_string().c_str(), endpoint_my.port());
   }
 
   void accept_connection()
   {
-    acceptor_.async_accept(socket_, [this](boost::system::error_code ec) {
-      if (!ec) {
-        // Once a connection is accepted, start reading data
-        RCLCPP_INFO(this->get_logger(), "TCP Connection established");
-        handle_client_request();
-      }
-    });
-    
+    acceptor_.async_accept(
+      socket_, [this](boost::system::error_code ec) {
+        if (!ec) {
+          // Once a connection is accepted, start reading data
+          RCLCPP_INFO(this->get_logger(), "TCP Connection established");
+          handle_client_request();
+        }
+      });
+
     // Run io_context in a background thread to process async events
     if (!io_context_thread_) {
-        io_context_thread_ = std::make_unique<std::thread>([this]() {
-            io_context_.run();
+      io_context_thread_ = std::make_unique<std::thread>(
+        [this]() {
+          io_context_.run();
         });
     }
   }
 
   void handle_client_request()
   {
-      try {
-          // Buffer to store incoming data
-          std::array<char, 128> buffer;
-          boost::system::error_code ec;
+    try {
+      // Buffer to store incoming data
+      std::array<char, 128> buffer;
+      boost::system::error_code ec;
 
-          // Read data from the socket
-          size_t length = socket_.read_some(boost::asio::buffer(buffer), ec);
-          if (!ec) {
-              std::string request(buffer.data(), length);
-              RCLCPP_INFO(this->get_logger(), "Received request: %s", request.c_str());
+      // Read data from the socket
+      size_t length = socket_.read_some(boost::asio::buffer(buffer), ec);
+      if (!ec) {
+        std::string request(buffer.data(), length);
+        RCLCPP_INFO(this->get_logger(), "Received request: %s", request.c_str());
 
-              // Parse the request (e.g., assume it is a comma-separated format: "x,y,z")
-              std::stringstream ss(request);
-              std::string x_str, y_str, z_str;
-              std::getline(ss, x_str, ',');
-              std::getline(ss, y_str, ',');
-              std::getline(ss, z_str, ',');
+        // Parse the request (e.g., assume it is a comma-separated format: "x,y,z")
+        std::stringstream ss(request);
+        std::string x_str, y_str, z_str;
+        std::getline(ss, x_str, ',');
+        std::getline(ss, y_str, ',');
+        std::getline(ss, z_str, ',');
 
-              // Process or send the goal
-              float x = std::stof(x_str);
-              float y = std::stof(y_str);
-              float z = std::stof(z_str);
-              RCLCPP_INFO(this->get_logger(), "Parsed coordinates: x=%f, y=%f, z=%f", x, y, z);
+        // Process or send the goal
+        float x = std::stof(x_str);
+        float y = std::stof(y_str);
+        float z = std::stof(z_str);
+        RCLCPP_INFO(this->get_logger(), "Parsed coordinates: x=%f, y=%f, z=%f", x, y, z);
 
-              send_goal(x,y,z);
+        send_goal(x, y, z);
 
-              // Example acknowledgment
-              std::string ack_message = "Request processed successfully.\n";
-              boost::asio::write(socket_, boost::asio::buffer(ack_message));
-          } else {
-              RCLCPP_ERROR(this->get_logger(), "Error reading from socket: %s", ec.message().c_str());
-          }
-
-          // Close the current socket after handling request
-          socket_.close();
-
-          // Prepare to accept the next connection
-          accept_connection();
-
-      } catch (const std::exception &e) {
-          RCLCPP_ERROR(this->get_logger(), "Exception in handle_client_request: %s", e.what());
-          socket_.close();
-          accept_connection();  // Ensure the server continues to accept new connections
+        // Example acknowledgment
+        std::string ack_message = "Request processed successfully.\n";
+        boost::asio::write(socket_, boost::asio::buffer(ack_message));
+      } else {
+        RCLCPP_ERROR(this->get_logger(), "Error reading from socket: %s", ec.message().c_str());
       }
+
+      // Close the current socket after handling request
+      socket_.close();
+
+      // Prepare to accept the next connection
+      accept_connection();
+
+    } catch (const std::exception & e) {
+      RCLCPP_ERROR(this->get_logger(), "Exception in handle_client_request: %s", e.what());
+      socket_.close();
+      accept_connection();      // Ensure the server continues to accept new connections
+    }
   }
 
 };  // class PoseActionClient
