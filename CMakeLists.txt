@@ -19,6 +19,8 @@ find_package(nav2_msgs REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
+
 
 add_executable(nav_ctrl nav_ctrl.cpp)
 ament_target_dependencies(nav_ctrl

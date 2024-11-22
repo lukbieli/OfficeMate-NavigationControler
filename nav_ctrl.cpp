@@ -18,6 +18,7 @@
 #include <future>
 #include <memory>
 #include <string>
+#include <boost/asio.hpp>  // Include boost asio
 
 // #include "example_interfaces/action/fibonacci.hpp"
 
@@ -34,7 +35,11 @@ public:
   using GoalHandlePose = rclcpp_action::ClientGoalHandle<NavToPose>;
 
   explicit PoseActionClient(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions())
-  : Node("pose_action_client", node_options), goal_done_(false)
+  : Node("pose_action_client", node_options), 
+  goal_done_(false),
+  io_context_(),
+  acceptor_(io_context_),  // Initialize acceptor
+  socket_(io_context_)  // Initialize socket
   {
     this->client_ptr_ = rclcpp_action::create_client<NavToPose>(
       this->get_node_base_interface(),
@@ -43,12 +48,25 @@ public:
       this->get_node_waitables_interface(),
       "navigate_to_pose");
 
-    this->timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(2000),
-      std::bind(&PoseActionClient::send_goal, this));
+    // this->timer_ = this->create_wall_timer(
+    //   std::chrono::milliseconds(2000),
+    //   std::bind(&PoseActionClient::send_goal, this));
 
     this->subscription_clock_ = create_subscription<rosgraph_msgs::msg::Clock>("clock", rclcpp::ClockQoS(),
                 std::bind(&PoseActionClient::topic_callback_clock, this, std::placeholders::_1));
+
+
+    // Start TCP server to accept incoming requests
+    start_tcp_server();
+  }
+
+
+  ~PoseActionClient()
+  {
+      io_context_.stop();
+      if (io_context_thread_ && io_context_thread_->joinable()) {
+          io_context_thread_->join();
+      }
   }
 
   bool is_goal_done() const
@@ -56,16 +74,17 @@ public:
     return this->goal_done_;
   }
 
-  void send_goal()
+  void send_goal(double x, double y, double w)
   {
     using namespace std::placeholders;
 
-    this->timer_->cancel();
+    // this->timer_->cancel();
 
     this->goal_done_ = false;
 
     if (!this->client_ptr_) {
       RCLCPP_ERROR(this->get_logger(), "Action client not initialized");
+      return;
     }
 
     if (!this->client_ptr_->wait_for_action_server(std::chrono::seconds(10))) {
@@ -88,14 +107,14 @@ public:
 
     goal_msg.pose.header.frame_id = "map";
 
-    goal_msg.pose.pose.position.x = 0.0;
-    goal_msg.pose.pose.position.y = 4.0;
+    goal_msg.pose.pose.position.x = x;
+    goal_msg.pose.pose.position.y = y;
     goal_msg.pose.pose.position.z = 0.0;
 
     goal_msg.pose.pose.orientation.x = 0.0;
     goal_msg.pose.pose.orientation.y = 0.0;
     goal_msg.pose.pose.orientation.z = 1.0;
-    goal_msg.pose.pose.orientation.w = 0.5;
+    goal_msg.pose.pose.orientation.w = w;
 
     RCLCPP_INFO(this->get_logger(), "Sending goal");
 
@@ -117,6 +136,13 @@ private:
   int32_t sec_;
   uint32_t nsec_;
   bool timeOk_ = false;
+  std::unique_ptr<std::thread> io_context_thread_;
+
+
+  // TCP server components
+  boost::asio::io_context io_context_;
+  boost::asio::ip::tcp::acceptor acceptor_;
+  boost::asio::ip::tcp::socket socket_;
 
   void goal_response_callback(GoalHandlePose::SharedPtr goal_handle)
   {
@@ -178,6 +204,91 @@ private:
 
       return result;
   }
+
+
+  void start_tcp_server()
+  {
+    using boost::asio::ip::tcp;
+    tcp::endpoint endpoint(tcp::v4(), 12345);  // Listening on port 12345
+    acceptor_.open(tcp::v4());
+    acceptor_.bind(endpoint);
+    acceptor_.listen();
+
+    accept_connection();
+
+
+    // Log server details
+    auto endpoint_my = acceptor_.local_endpoint();
+    RCLCPP_INFO(this->get_logger(), "TCP Server started on IP: %s, Port: %d",
+                endpoint_my.address().to_string().c_str(), endpoint_my.port());
+  }
+
+  void accept_connection()
+  {
+    acceptor_.async_accept(socket_, [this](boost::system::error_code ec) {
+      if (!ec) {
+        // Once a connection is accepted, start reading data
+        RCLCPP_INFO(this->get_logger(), "TCP Connection established");
+        handle_client_request();
+      }
+    });
+    
+    // Run io_context in a background thread to process async events
+    if (!io_context_thread_) {
+        io_context_thread_ = std::make_unique<std::thread>([this]() {
+            io_context_.run();
+        });
+    }
+  }
+
+  void handle_client_request()
+  {
+      try {
+          // Buffer to store incoming data
+          std::array<char, 128> buffer;
+          boost::system::error_code ec;
+
+          // Read data from the socket
+          size_t length = socket_.read_some(boost::asio::buffer(buffer), ec);
+          if (!ec) {
+              std::string request(buffer.data(), length);
+              RCLCPP_INFO(this->get_logger(), "Received request: %s", request.c_str());
+
+              // Parse the request (e.g., assume it is a comma-separated format: "x,y,z")
+              std::stringstream ss(request);
+              std::string x_str, y_str, z_str;
+              std::getline(ss, x_str, ',');
+              std::getline(ss, y_str, ',');
+              std::getline(ss, z_str, ',');
+
+              // Process or send the goal
+              float x = std::stof(x_str);
+              float y = std::stof(y_str);
+              float z = std::stof(z_str);
+              RCLCPP_INFO(this->get_logger(), "Parsed coordinates: x=%f, y=%f, z=%f", x, y, z);
+
+              send_goal(x,y,z);
+
+              // Example acknowledgment
+              std::string ack_message = "Request processed successfully.\n";
+              boost::asio::write(socket_, boost::asio::buffer(ack_message));
+          } else {
+              RCLCPP_ERROR(this->get_logger(), "Error reading from socket: %s", ec.message().c_str());
+          }
+
+          // Close the current socket after handling request
+          socket_.close();
+
+          // Prepare to accept the next connection
+          accept_connection();
+
+      } catch (const std::exception &e) {
+          RCLCPP_ERROR(this->get_logger(), "Exception in handle_client_request: %s", e.what());
+          socket_.close();
+          accept_connection();  // Ensure the server continues to accept new connections
+      }
+  }
+
 };  // class PoseActionClient
 
 int main(int argc, char ** argv)
