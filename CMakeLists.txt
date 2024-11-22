@@ -32,24 +32,6 @@ ament_target_dependencies(nav_ctrl
   "geometry_msgs"
   "std_msgs")
 
-# add_executable(action_client_not_composable not_composable.cpp)
-# ament_target_dependencies(action_client_not_composable
-#   "rclcpp"
-#   "rclcpp_action"
-#   "example_interfaces")
-
-# add_executable(action_client_not_composable_with_cancel not_composable_with_cancel.cpp)
-# ament_target_dependencies(action_client_not_composable_with_cancel
-#   "rclcpp"
-#   "rclcpp_action"
-#   "example_interfaces")
-
-# add_executable(action_client_not_composable_with_feedback not_composable_with_feedback.cpp)
-# ament_target_dependencies(action_client_not_composable_with_feedback
-#   "rclcpp"
-#   "rclcpp_action"
-#   "example_interfaces")
-
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
@@ -57,9 +39,6 @@ endif()
 
 install(TARGETS
   nav_ctrl
-  # action_client_not_composable
-  # action_client_not_composable_with_cancel
-  # action_client_not_composable_with_feedback
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
