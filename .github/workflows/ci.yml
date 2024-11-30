@@ -48,6 +48,7 @@ jobs:
         mkdir -p ~/ros2_ws/src
         ln -s ${{ github.workspace }} ~/ros2_ws/src/navigation_controler
         cd ~/ros2_ws
+        source /opt/ros/humble/setup.bash
         rosdep init || true
         rosdep update
         rosdep install --from-paths src --ignore-src -r -y
@@ -56,11 +57,13 @@ jobs:
     - name: Build workspace
       run: |
         cd ~/ros2_ws
+        source /opt/ros/humble/setup.bash
         colcon build
 
     # Test the package
     - name: Run tests
       run: |
         cd ~/ros2_ws
+        source /opt/ros/humble/setup.bash
         colcon test
         colcon test-result --verbose
