@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     name: Build ROS 2 Package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         ros-distro: [humble]
@@ -20,6 +20,12 @@ jobs:
     # Checkout the repository
     - name: Checkout code
       uses: actions/checkout@v3
+
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10' # Or your desired Python version
 
     # Set up ROS 2
     - name: Setup ROS 2
