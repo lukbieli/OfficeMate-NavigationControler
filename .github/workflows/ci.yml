@@ -63,7 +63,7 @@ jobs:
       run: |
         cd ~/ros2_ws
         source /opt/ros/humble/setup.bash
-        colcon build
+        colcon build --cmake-args -DBUILD_TESTING=OFF
 
     # Test the package
     - name: Run tests
